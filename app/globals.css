@@ -25,6 +25,15 @@ textarea {
   resize: vertical;
 }
 
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+input:-internal-autofill-selected,
+textarea:-internal-autofill-selected {
+  background-color: #ffffff !important;
+  box-shadow: 0 0 0 1000px #ffffff inset;
+  -webkit-text-fill-color: inherit;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

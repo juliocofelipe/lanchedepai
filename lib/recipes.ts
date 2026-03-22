@@ -15,6 +15,41 @@ export type NormalizedRecipePayload = RecipePayload & { favorite: boolean };
 
 export class RecipeValidationError extends Error {}
 
+let schemaReadyPromise: Promise<void> | null = null;
+
+const ensureRecipesSchema = async () => {
+  if (!schemaReadyPromise) {
+    schemaReadyPromise = (async () => {
+      await sql`
+        CREATE TABLE IF NOT EXISTS recipes (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          ingredients JSONB NOT NULL,
+          preparo TEXT NOT NULL,
+          finalizacao TEXT NOT NULL,
+          favorite BOOLEAN DEFAULT FALSE,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `;
+
+      await sql`
+        ALTER TABLE recipes
+        ADD COLUMN IF NOT EXISTS favorite BOOLEAN DEFAULT FALSE
+      `;
+
+      await sql`
+        ALTER TABLE recipes
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      `;
+    })().catch((error) => {
+      schemaReadyPromise = null;
+      throw error;
+    });
+  }
+
+  await schemaReadyPromise;
+};
+
 const ensureStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
   return value
@@ -72,6 +107,7 @@ export const normalizeIncomingPayload = (payload: unknown): NormalizedRecipePayl
 };
 
 export const listRecipes = async (): Promise<Recipe[]> => {
+  await ensureRecipesSchema();
   const rows = (await sql`
     SELECT id, name, ingredients, preparo, finalizacao, favorite, updated_at
     FROM recipes
@@ -83,6 +119,7 @@ export const listRecipes = async (): Promise<Recipe[]> => {
 export const createRecipeRecord = async (
   payload: NormalizedRecipePayload & { id?: string }
 ): Promise<Recipe> => {
+  await ensureRecipesSchema();
   const recordId = payload.id ?? crypto.randomUUID();
   const [row] = (await sql`
     INSERT INTO recipes (id, name, ingredients, preparo, finalizacao, favorite, updated_at)
@@ -104,6 +141,7 @@ export const updateRecipeRecord = async (
   id: string,
   payload: NormalizedRecipePayload
 ): Promise<Recipe | null> => {
+  await ensureRecipesSchema();
   const rows = (await sql`
     UPDATE recipes
     SET
@@ -125,6 +163,7 @@ export const updateRecipeRecord = async (
 };
 
 export const touchRecipeRecord = async (id: string): Promise<Recipe | null> => {
+  await ensureRecipesSchema();
   const rows = (await sql`
     UPDATE recipes
     SET updated_at = now()
@@ -138,6 +177,7 @@ export const touchRecipeRecord = async (id: string): Promise<Recipe | null> => {
 };
 
 export const deleteRecipeRecord = async (id: string): Promise<boolean> => {
+  await ensureRecipesSchema();
   const rows = (await sql`
     DELETE FROM recipes WHERE id = ${id} RETURNING id
   `) as { id: string }[];

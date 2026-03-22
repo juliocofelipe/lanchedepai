@@ -8,29 +8,81 @@
   margin: 0 auto;
 }
 
+
 .hero {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  padding: 0 15px;
+}
+
+.heroHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 
 .title {
-  font-size: clamp(28px, 7vw, 36px);
+  font-size: clamp(32px, 8vw, 36px);
   font-weight: 600;
   letter-spacing: -0.02em;
+  margin: 0;
 }
 
 .tagline {
   color: #6b6b6b;
-  font-size: 0.95rem;
+  font-size: 1rem;
+  margin: 4px 0 0;
+}
+
+.searchRow {
+  display: flex;
+  gap: 12px;
 }
 
 .searchField {
-  width: 100%;
-  border-radius: 16px;
+  flex: 1;
+  border-radius: 8px;
   border: 1px solid #e5e2dc;
   padding: 14px 18px;
   background: #ffffff;
+  font-size: 1rem;
+  color: #9a9a9a;
+}
+
+.voiceButton {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: none;
+  background: #fff2ea;
+  color: #c67a52;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.voiceButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.voiceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.voiceClear {
+  margin-top: 4px;
+  border: none;
+  background: transparent;
+  color: #c4574c;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
 }
 
 .actions {
@@ -47,6 +99,10 @@
   background: #ffffff;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .accentButton {
@@ -153,6 +209,9 @@
   padding: 8px 14px;
   cursor: pointer;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .dangerButton {
@@ -163,6 +222,9 @@
   padding: 8px 14px;
   cursor: pointer;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .sectionTitle {
@@ -241,6 +303,10 @@
   border: 1px solid transparent;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .secondaryBtn {
@@ -259,6 +325,120 @@
   min-height: 160px;
 }
 
+.importHelper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.importHint {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #4d4942;
+}
+
+.dropzone {
+  border: 1px dashed #c9c3b8;
+  border-radius: 16px;
+  padding: 16px;
+  text-align: center;
+  background: #fdfaf5;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.dropzoneIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: #f3ece3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #c67a52;
+  margin-bottom: 4px;
+}
+
+.hiddenInput {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.dropzoneTitle {
+  font-weight: 600;
+}
+
+.dropzoneHint {
+  font-size: 0.85rem;
+  color: #6b6b6b;
+}
+
+.imagePreview {
+  border: 1px solid #e5e2dc;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.imagePreview img {
+  width: 100%;
+  display: block;
+  max-height: 220px;
+  object-fit: cover;
+}
+
+.previewActions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  gap: 12px;
+}
+
+.previewLabel {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #4d4942;
+}
+
+.progressWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progressBar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #ede7dd;
+  overflow: hidden;
+}
+
+.progressBar > div {
+  height: 100%;
+  background: #c67a52;
+  width: 0;
+  transition: width 0.2s ease;
+}
+
+.progressText {
+  font-size: 0.8rem;
+  color: #6b6b6b;
+}
+
+.success {
+  color: #2a7c4f;
+  font-size: 0.85rem;
+}
+
 .error {
   color: #c4574c;
   font-size: 0.85rem;
@@ -268,4 +448,21 @@
   .container {
     padding-top: 40px;
   }
+}
+.logoutButton {
+  border: none;
+  background: transparent;
+  color: #6b6b6b;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.logoutButton:hover {
+  color: #c4574c;
+}
+.voiceFeedback {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }

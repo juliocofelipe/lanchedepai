@@ -1,10 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ImageDown, Mic, Pencil, Plus, Star, Trash2, UploadCloud, Wand2, X } from "lucide-react";
 
+import type { ParsedRecipe } from "@/lib/recipe-import";
 import type { Recipe, RecipePayload } from "@/types/recipe";
 import styles from "./page.module.css";
+
+import type { ChangeEvent, ClipboardEvent, DragEvent } from "react";
 
 type RecipeFormState = {
   id?: string;
@@ -14,6 +18,28 @@ type RecipeFormState = {
   finalizacao: string;
   favorite: boolean;
 };
+
+type VoiceRecognitionResultEvent = {
+  results: ArrayLike<{
+    0: {
+      transcript: string;
+    };
+  }>;
+};
+
+type VoiceRecognition = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: VoiceRecognitionResultEvent) => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onend: (() => void) | null;
+};
+
+type VoiceRecognitionConstructor = new () => VoiceRecognition;
 
 const emptyFormState = (): RecipeFormState => ({
   name: "",
@@ -28,7 +54,7 @@ const toFormState = (recipe?: Recipe): RecipeFormState =>
     ? {
         id: recipe.id,
         name: recipe.name,
-        ingredientsText: recipe.ingredients.join("\n"),
+        ingredientsText: (Array.isArray(recipe.ingredients) ? recipe.ingredients : []).join("\n"),
         preparo: recipe.preparo,
         finalizacao: recipe.finalizacao,
         favorite: Boolean(recipe.favorite)
@@ -85,216 +111,193 @@ const upsertRecipe = (items: Recipe[], updated: Recipe): Recipe[] => {
     : [...items, updated];
 };
 
-type ImportedRecipeJson = {
-  name?: string;
-  title?: string;
-  ingredients?: string[] | string;
-  preparo?: string;
-  preparation?: string;
-  instructions?: string;
-  finalizacao?: string;
-  finalization?: string;
-  finish?: string;
-};
-
-const parseJsonRecipe = (raw: string): RecipeFormState | null => {
-  let data: ImportedRecipeJson | null = null;
-  try {
-    data = JSON.parse(raw) as ImportedRecipeJson;
-  } catch {
-    return null;
-  }
-
-  if (!data || typeof data !== "object") return null;
-
-  const name = (data.name || data.title || "").trim();
-  if (!name) return null;
-
-  const ingredientsArray = Array.isArray(data.ingredients)
-    ? data.ingredients.map((item) => String(item))
-    : typeof data.ingredients === "string"
-    ? normalizeLines(data.ingredients.replace(/[,;]/g, "\n"))
-    : [];
-
-  const normalizedIngredients = ingredientsArray
-    .map((item) => String(item).trim())
-    .filter(Boolean);
-
-  const preparo =
-    data.preparo || data.preparation || data.instructions || "";
-  const finalizacao =
-    data.finalizacao || data.finalization || data.finish || "";
-
-  return {
-    name,
-    ingredientsText: normalizedIngredients.join("\n"),
-    preparo: (preparo || "").trim(),
-    finalizacao: (finalizacao || "").trim(),
-    favorite: false
-  };
-};
-
-const stripDiacritics = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-
-const sectionFromLabel = (
-  label: string
-): "ingredients" | "preparo" | "finalizacao" | null => {
-  const normalized = stripDiacritics(label);
-  const match = (keys: string[]) => keys.some((key) => normalized.includes(key));
-
-  if (match(["ingrediente", "ingredientes", "ingred", "ing"])) {
-    return "ingredients";
-  }
-  if (match(["preparo", "modo", "preparar", "passo", "modo de preparo"])) {
-    return "preparo";
-  }
-  if (match(["final", "finalizacao", "finalizar", "servir", "acabamento"])) {
-    return "finalizacao";
-  }
-  return null;
-};
-
-const parseRecipeText = (raw: string): RecipeFormState => {
-  if (!raw.trim()) {
-    throw new Error("Cole o texto da receita para importar");
-  }
-
-  const jsonParsed = parseJsonRecipe(raw);
-  if (jsonParsed) {
-    return jsonParsed;
-  }
-
-  const lines = raw.split(/\r?\n/);
-  let name = "";
-  const ingredients: string[] = [];
-  let preparo = "";
-  let finalizacao = "";
-  let section: "guess" | "ingredients" | "preparo" | "finalizacao" = "guess";
-
-  const pushIngredientsFromText = (value: string) => {
-    const cleaned = value.replace(/^[-•\u2022]\s?/, "").trim();
-    if (!cleaned) return;
-    const fragments = cleaned
-      .split(/[;,]/)
-      .map((fragment) => fragment.trim())
-      .filter(Boolean);
-    if (fragments.length) {
-      ingredients.push(...fragments);
-    } else {
-      ingredients.push(cleaned);
-    }
-  };
-
-  const appendText = (current: string, addition: string) =>
-    [current, addition].filter(Boolean).join(current ? " " : "");
-
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-    if (!trimmed) return;
-    const normalized = stripDiacritics(trimmed);
-
-    if (normalized.startsWith("nome:")) {
-      name = trimmed.slice(trimmed.indexOf(":") + 1).trim() || name;
-      return;
-    }
-
-    const colonIndex = trimmed.indexOf(":");
-    if (colonIndex !== -1) {
-      const label = trimmed.slice(0, colonIndex);
-      const remainder = trimmed.slice(colonIndex + 1).trim();
-      const possibleSection = sectionFromLabel(label);
-      if (possibleSection) {
-        section = possibleSection;
-        if (remainder) {
-          if (section === "ingredients") {
-            pushIngredientsFromText(remainder);
-          } else if (section === "preparo") {
-            preparo = appendText(preparo, remainder);
-          } else if (section === "finalizacao") {
-            finalizacao = remainder;
-          }
-        }
-        return;
-      }
-    }
-
-    const headerSection = sectionFromLabel(trimmed);
-    if (headerSection) {
-      section = headerSection;
-      return;
-    }
-
-    if (!name) {
-      name = trimmed;
-      return;
-    }
-
-    if (section === "ingredients" || /^[-•\u2022]/.test(trimmed)) {
-      pushIngredientsFromText(trimmed);
-      return;
-    }
-
-    if (section === "preparo") {
-      preparo = appendText(preparo, trimmed);
-      return;
-    }
-
-    if (section === "finalizacao") {
-      finalizacao = trimmed;
-      return;
-    }
-
-    if (!ingredients.length) {
-      pushIngredientsFromText(trimmed);
-      return;
-    }
-
-    if (!preparo) {
-      preparo = trimmed;
-      return;
-    }
-
-    if (!finalizacao) {
-      finalizacao = trimmed;
-      return;
-    }
-
-    preparo = appendText(preparo, trimmed);
-  });
-
-  if (!name.trim()) {
-    throw new Error("Não foi possível identificar o nome da receita");
-  }
-
-  if (!ingredients.length && preparo) {
-    ingredients.push("Descreva os ingredientes em linhas separadas");
-  }
-
-  return {
-    name: name.trim(),
-    ingredientsText: ingredients.join("\n"),
-    preparo: preparo.trim(),
-    finalizacao: finalizacao.trim(),
-    favorite: false
-  };
-};
 
 export default function Home() {
+  const router = useRouter();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [formState, setFormState] = useState<RecipeFormState>(emptyFormState);
   const [importOpen, setImportOpen] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [speechActive, setSpeechActive] = useState(false);
+  const [speechTranscript, setSpeechTranscript] = useState("");
+  const [speechError, setSpeechError] = useState<string | null>(null);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
+  const [importInfo, setImportInfo] = useState<string | null>(null);
+  const [importImageFile, setImportImageFile] = useState<File | null>(null);
+  const [importImagePreview, setImportImagePreview] = useState<string | null>(null);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [importTransforming, setImportTransforming] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
+  const latestOcrFileRef = useRef<File | null>(null);
+  const speechRecognitionRef = useRef<VoiceRecognition | null>(null);
+
+  const processImageWithOcr = useCallback(async (file: File) => {
+    setOcrLoading(true);
+    setOcrProgress(0);
+    setOcrError(null);
+    setImportError(null);
+    setImportInfo(null);
+    try {
+      const { default: Tesseract } = await import("tesseract.js");
+      const result = await Tesseract.recognize(file, "por+eng", {
+        logger: (message: { status?: string; progress?: number }) => {
+          if (message.status === "recognizing text" && typeof message.progress === "number") {
+            setOcrProgress(message.progress);
+          }
+        }
+      });
+      if (latestOcrFileRef.current !== file) {
+        return;
+      }
+      const text = result?.data?.text?.trim();
+      if (!text) {
+        setOcrError("Não encontramos texto na imagem selecionada");
+        return;
+      }
+      setOcrError(null);
+      setImportText(text);
+      setImportInfo(`Texto extraído automaticamente (${file.name})`);
+    } catch (ocrProblem) {
+      if (latestOcrFileRef.current === file) {
+        setOcrError("Erro ao extrair texto da imagem");
+      }
+      console.error("OCR", ocrProblem);
+    } finally {
+      if (latestOcrFileRef.current === file) {
+        setOcrLoading(false);
+      }
+    }
+  }, []);
+
+  const handleImageFileSelection = useCallback(
+    (file: File | null) => {
+      latestOcrFileRef.current = file;
+      setImportImageFile(file);
+      if (!file) {
+        setOcrError(null);
+        setImportInfo(null);
+        setOcrLoading(false);
+        setOcrProgress(0);
+        return;
+      }
+      setImportText("");
+      setImportError(null);
+      setImportInfo(null);
+      void processImageWithOcr(file);
+    },
+    [processImageWithOcr]
+  );
+
+  const handleClearImportImage = useCallback(() => {
+    handleImageFileSelection(null);
+  }, [handleImageFileSelection]);
+
+  const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const [file] = Array.from(event.target.files ?? []);
+    if (file) {
+      handleImageFileSelection(file);
+    }
+    event.target.value = "";
+  };
+
+  const handleImportDragOver = useCallback((event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  const handleImportDrop = useCallback(
+    (event: DragEvent<HTMLLabelElement>) => {
+      event.preventDefault();
+      const [file] = Array.from(event.dataTransfer.files ?? []);
+      if (file) {
+        handleImageFileSelection(file);
+      }
+    },
+    [handleImageFileSelection]
+  );
+
+  const handleImportPaste = useCallback(
+    (event: ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = event.clipboardData?.items;
+      if (!items) return;
+      const imageItem = Array.from(items).find((item) => item.type.startsWith("image/"));
+      if (imageItem) {
+        event.preventDefault();
+        const file = imageItem.getAsFile();
+        if (file) {
+          handleImageFileSelection(file);
+        }
+      }
+    },
+    [handleImageFileSelection]
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const speechRecognitionApi =
+      ((window as typeof window & { SpeechRecognition?: VoiceRecognitionConstructor }).SpeechRecognition as
+        | VoiceRecognitionConstructor
+        | undefined) ??
+      ((window as typeof window & { webkitSpeechRecognition?: VoiceRecognitionConstructor }).webkitSpeechRecognition as
+        | VoiceRecognitionConstructor
+        | undefined);
+
+    if (!speechRecognitionApi) {
+      setSpeechSupported(false);
+      return;
+    }
+
+    setSpeechSupported(true);
+    const recognition = new speechRecognitionApi();
+    recognition.lang = "pt-BR";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript?.trim().replace(/[.。]+$/, "");
+      if (transcript) {
+        setSpeechTranscript(transcript);
+        setQuery(transcript);
+      }
+      setSpeechActive(false);
+    };
+    recognition.onerror = (event) => {
+      setSpeechError("Não foi possível capturar sua voz.");
+      console.error("speech error", event);
+    };
+    recognition.onend = () => {
+      setSpeechActive(false);
+    };
+    speechRecognitionRef.current = recognition;
+
+    return () => {
+      try {
+        recognition.stop();
+      } catch {
+        // ignore
+      }
+      speechRecognitionRef.current = null;
+    };
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/session", { method: "DELETE" });
+    } catch (error) {
+      console.error("logout", error);
+    } finally {
+      router.push("/login");
+    }
+  }, [router]);
 
   const loadRecipes = useCallback(async () => {
     setLoading(true);
@@ -312,6 +315,19 @@ export default function Home() {
   useEffect(() => {
     void loadRecipes();
   }, [loadRecipes]);
+
+  useEffect(() => {
+    if (!importImageFile) {
+      setImportImagePreview(null);
+      return undefined;
+    }
+    const previewUrl = URL.createObjectURL(importImageFile);
+    setImportImagePreview(previewUrl);
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [importImageFile]);
+
 
   const orderedRecipes = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -363,21 +379,34 @@ export default function Home() {
     setImportOpen(false);
     setImportText("");
     setImportError(null);
+    setImportInfo(null);
+    setImportImageFile(null);
+    setOcrError(null);
+    setOcrLoading(false);
+    setOcrProgress(0);
+    latestOcrFileRef.current = null;
   };
 
   const openImport = () => {
     setImportText("");
     setImportError(null);
+    setImportInfo(null);
+    setImportImageFile(null);
+    setOcrError(null);
+    setOcrLoading(false);
+    setOcrProgress(0);
+    latestOcrFileRef.current = null;
     setImportOpen(true);
   };
 
   const handleFavoriteToggle = async (recipe: Recipe) => {
     try {
+      const currentIngredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
       const updated = await jsonRequest<Recipe>(`/api/recipes/${recipe.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           name: recipe.name,
-          ingredients: recipe.ingredients,
+          ingredients: currentIngredients,
           preparo: recipe.preparo,
           finalizacao: recipe.finalizacao,
           favorite: !recipe.favorite
@@ -436,24 +465,74 @@ export default function Home() {
     }
   };
 
-  const handleImportApply = () => {
+  const handleImportApply = async () => {
+    const trimmed = importText.trim();
+    if (!trimmed) {
+      setImportError("Cole ou extraia o texto da receita antes de transformar");
+      return;
+    }
+
+    setImportTransforming(true);
+    setImportError(null);
     try {
-      const parsed = parseRecipeText(importText);
-      setFormState(parsed);
+      const parsed = await jsonRequest<ParsedRecipe>("/api/import", {
+        method: "POST",
+        body: JSON.stringify({ text: trimmed })
+      });
+      setFormState({
+        id: undefined,
+        name: parsed.name,
+        ingredientsText: parsed.ingredients.join("\n"),
+        preparo: parsed.preparo,
+        finalizacao: parsed.finalizacao,
+        favorite: Boolean(parsed.favorite)
+      });
       closeImport();
       setFormOpen(true);
     } catch (importProblem) {
-      setImportError(
-        importProblem instanceof Error ? importProblem.message : "Erro ao importar"
-      );
+      setImportError(importProblem instanceof Error ? importProblem.message : "Erro ao importar");
+    } finally {
+      setImportTransforming(false);
+    }
+  };
+
+  const handleStartListening = () => {
+    if (!speechSupported || !speechRecognitionRef.current) {
+      setSpeechError("Seu navegador não suporta ditado ainda.");
+      return;
+    }
+    setSpeechError(null);
+    setSpeechTranscript("");
+    try {
+      speechRecognitionRef.current.start();
+      setSpeechActive(true);
+    } catch (error) {
+      console.error("speech start", error);
+      setSpeechError("Não foi possível iniciar o microfone.");
+    }
+  };
+
+  const handleStopListening = () => {
+    if (!speechRecognitionRef.current) return;
+    try {
+      speechRecognitionRef.current.stop();
+    } catch (error) {
+      console.error("speech stop", error);
     }
   };
 
   return (
     <main className={styles.container}>
       <section className={styles.hero}>
-        <h1 className={styles.title}>Lanchinhos</h1>
-        <p className={styles.tagline}>Receitas rápidas sempre visíveis.</p>
+        <div className={styles.heroHeader}>
+          <div>
+            <h1 className={styles.title}>Lanche de Pai</h1>
+            <p className={styles.tagline}>Receitas rápidas sempre visíveis.</p>
+          </div>
+          <button className={styles.logoutButton} onClick={() => void handleLogout()}>
+            Sair
+          </button>
+        </div>
       </section>
 
       {error && (
@@ -462,21 +541,39 @@ export default function Home() {
         </p>
       )}
 
-      <input
-        aria-label="Buscar receitas"
-        className={styles.searchField}
-        placeholder="O que vamos fazer?"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        autoComplete="off"
-      />
+      <div className={styles.searchRow}>
+        <input
+          aria-label="Buscar receitas"
+          className={styles.searchField}
+          placeholder="O que vamos fazer?"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          autoComplete="off"
+        />
+        <button
+          type="button"
+          className={styles.voiceButton}
+          aria-label={speechActive ? "Parar ditado" : "Buscar com voz"}
+          onClick={() => (speechActive ? handleStopListening() : handleStartListening())}
+        >
+          <Mic size={16} aria-hidden="true" />
+        </button>
+      </div>
+
+      {!speechSupported && (
+        <p className={styles.importHint} style={{ marginTop: 4 }}>
+          Seu navegador não suporta ditado — experimente o Chrome para Android ou desktop.
+        </p>
+      )}
 
       <div className={styles.actions}>
         <button className={styles.ghostButton} onClick={openImport}>
-          Importar receita
+          <UploadCloud size={18} aria-hidden="true" />
+          <span>Importar receita</span>
         </button>
         <button className={styles.accentButton} onClick={openCreate}>
-          + Nova
+          <Plus size={18} aria-hidden="true" />
+          <span>Nova</span>
         </button>
       </div>
 
@@ -491,7 +588,7 @@ export default function Home() {
               <div onClick={() => handleSelectRecipe(recipe)} style={{ flex: 1 }}>
                 <div className={styles.cardTitle}>{recipe.name}</div>
                 <small style={{ color: "#6b6b6b" }}>
-                  {recipe.ingredients.length} ingrediente(s)
+                  {(recipe.ingredients?.length ?? 0)} ingrediente(s)
                 </small>
               </div>
               <button
@@ -499,10 +596,15 @@ export default function Home() {
                 className={`${styles.starButton} ${recipe.favorite ? styles.favorite : ""}`}
                 onClick={() => void handleFavoriteToggle(recipe)}
               >
-                {recipe.favorite ? "⭐" : "☆"}
+                <Star
+                  size={18}
+                  aria-hidden="true"
+                  fill={recipe.favorite ? "currentColor" : "none"}
+                  stroke="currentColor"
+                />
               </button>
               <button className={styles.starButton} onClick={() => openEdit(recipe)} aria-label="Editar">
-                ✎
+                <Pencil size={16} aria-hidden="true" />
               </button>
               <button
                 className={`${styles.starButton} ${styles.deleteButton}`}
@@ -525,17 +627,19 @@ export default function Home() {
                   className={styles.dangerButton}
                   onClick={() => void handleDeleteRecipe(selectedRecipe)}
                 >
-                  Excluir
+                  <Trash2 size={16} aria-hidden="true" />
+                  <span>Excluir</span>
                 </button>
                 <button className={styles.closeButton} onClick={() => setSelectedId(null)}>
-                  Fechar
+                  <X size={16} aria-hidden="true" />
+                  <span>Fechar</span>
                 </button>
               </div>
             </div>
             <div>
               <div className={styles.sectionTitle}>INGREDIENTES</div>
               <ul style={{ paddingLeft: "1.2rem", marginTop: 8 }}>
-                {selectedRecipe.ingredients.map((item) => (
+                {(Array.isArray(selectedRecipe.ingredients) ? selectedRecipe.ingredients : []).map((item) => (
                   <li key={item} className={styles.paragraph}>
                     {item}
                   </li>
@@ -612,14 +716,16 @@ export default function Home() {
 
             <div className={styles.buttonsRow}>
               <button className={styles.secondaryBtn} onClick={closeForm}>
-                Cancelar
+                <X size={16} aria-hidden="true" />
+                <span>Cancelar</span>
               </button>
               <button
                 className={styles.primaryBtn}
                 onClick={handleSaveRecipe}
                 disabled={saving}
               >
-                {saving ? "Salvando..." : "Salvar"}
+                <Check size={16} aria-hidden="true" />
+                <span>{saving ? "Salvando..." : "Salvar"}</span>
               </button>
             </div>
           </div>
@@ -638,19 +744,90 @@ export default function Home() {
                 onChange={(event) => {
                   setImportText(event.target.value);
                   setImportError(null);
+                  setImportInfo(null);
                 }}
+                onPaste={handleImportPaste}
               />
             </label>
+            <div className={styles.importHelper}>
+              <p className={styles.importHint}>
+                Prefere usar uma imagem? Arraste/solte, clique abaixo ou simplesmente cole a foto da receita para
+                extrairmos o texto automaticamente.
+              </p>
+              <label
+                className={styles.dropzone}
+                onDragOver={handleImportDragOver}
+                onDrop={handleImportDrop}
+              >
+                <input
+                  ref={importFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className={styles.hiddenInput}
+                  onChange={handleFileInputChange}
+                />
+                <span className={styles.dropzoneIcon}>
+                  <ImageDown size={20} aria-hidden="true" />
+                </span>
+                <span className={styles.dropzoneTitle}>Clique aqui ou solte uma imagem</span>
+                <span className={styles.dropzoneHint}>Formatos compatíveis: JPG, PNG, HEIC</span>
+              </label>
+              {importImagePreview && (
+                <div className={styles.imagePreview}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={importImagePreview} alt="Prévia da imagem importada" />
+                  <div className={styles.previewActions}>
+                    <span className={styles.previewLabel}>{importImageFile?.name ?? "Imagem colada"}</span>
+                    <button type="button" className={styles.secondaryBtn} onClick={handleClearImportImage}>
+                      <Trash2 size={16} aria-hidden="true" />
+                      <span>Remover imagem</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+              {ocrLoading && (
+                <div className={styles.progressWrapper}>
+                  <div className={styles.progressBar}>
+                    <div style={{ width: `${Math.round(ocrProgress * 100)}%` }} />
+                  </div>
+                  <small className={styles.progressText}>
+                    Extraindo texto... {Math.round(ocrProgress * 100)}%
+                  </small>
+                </div>
+              )}
+              {ocrError && <p className={styles.error}>{ocrError}</p>}
+              {importInfo && <p className={styles.success}>{importInfo}</p>}
+            </div>
             {importError && <p className={styles.error}>{importError}</p>}
             <div className={styles.buttonsRow}>
-              <button className={styles.secondaryBtn} onClick={closeImport}>
-                Fechar
+              <button className={styles.secondaryBtn} onClick={closeImport} disabled={importTransforming}>
+                <X size={16} aria-hidden="true" />
+                <span>Fechar</span>
               </button>
-              <button className={styles.primaryBtn} onClick={handleImportApply}>
-                Transformar
+              <button
+                className={styles.primaryBtn}
+                onClick={() => void handleImportApply()}
+                disabled={importTransforming}
+              >
+                <Wand2 size={16} aria-hidden="true" />
+                <span>{importTransforming ? "Transformando..." : "Transformar"}</span>
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {(speechError || speechTranscript) && (
+        <div className={styles.voiceFeedback}>
+          {speechError && <p className={styles.error}>{speechError}</p>}
+          {speechTranscript && (
+            <p className={styles.success}>
+              Capturamos: <strong>{speechTranscript}</strong>
+            </p>
+          )}
+          {speechTranscript && (
+            <button type="button" className={styles.voiceClear} onClick={() => setSpeechTranscript("")}>Limpar voz</button>
+          )}
         </div>
       )}
     </main>

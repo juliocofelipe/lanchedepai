@@ -1,0 +1,327 @@
+.screen {
+  min-height: 100vh;
+  padding: 32px 16px 48px;
+  background: #faf8f4;
+  display: flex;
+  justify-content: center;
+}
+
+.device {
+  width: min(420px, 100%);
+  background: #faf8f4;
+  border-radius: 8px;
+  border: 1px solid #ede7dd;
+  box-shadow: 0 30px 80px rgba(30, 18, 6, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.statusBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 24px 12px;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.statusTime {
+  letter-spacing: -0.02em;
+}
+
+.statusIcons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusDot,
+.statusLine,
+.statusBattery {
+  display: inline-block;
+  background: #2c2c2c;
+}
+
+.statusDot {
+  width: 18px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.statusLine {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.statusBattery {
+  width: 20px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.heroSection {
+  padding: 16px 28px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.heroImage {
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #fde8cf, #f9d4bf);
+  margin-top: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #f0ece6;
+  box-shadow: 0 24px 60px rgba(198, 122, 82, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heroImage img {
+  width: auto;
+  height: auto;
+  display: block;
+  border-radius: inherit;
+}
+
+.heroCopy {
+  margin: 0;
+  color: #6b6b6b;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.form {
+  padding: 0 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inlineError {
+  font-size: 0.75rem;
+  color: #c4574c;
+  font-weight: 600;
+}
+
+.label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b6b6b;
+}
+
+.fieldShell {
+  border-radius: 8px;
+  border: 1px solid #e5e2dc;
+  padding: 14px 18px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.fieldShell:focus-within {
+  border-color: #c67a52;
+  box-shadow: 0 0 0 3px rgba(198, 122, 82, 0.16);
+}
+
+.fieldShellError {
+  border-color: #c4574c;
+  box-shadow: 0 0 0 3px rgba(196, 87, 76, 0.2);
+}
+
+.fieldInput {
+  border: none;
+  background: transparent;
+  font-size: 0.9rem;
+  flex: 1;
+  color: #2c2c2c;
+}
+
+.fieldInput:focus {
+  outline: none;
+}
+
+.fieldInput::placeholder {
+  color: #a7a19a;
+}
+
+.showButton {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: #c67a52;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  appearance: none;
+}
+
+.showButton:focus-visible {
+  outline: 2px solid rgba(198, 122, 82, 0.8);
+  outline-offset: 2px;
+}
+
+.forgotLink {
+  align-self: flex-end;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #c67a52;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.resetSection {
+  border: 1px solid #f0ece6;
+  border-radius: 8px;
+  background: #fffaf4;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.resetHint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #4d4942;
+}
+
+.resetInput {
+  border-radius: 8px;
+  border: 1px solid #e5e2dc;
+  padding: 12px 14px;
+  font-size: 0.95rem;
+  background: #ffffff;
+}
+
+.resetInput:focus {
+  outline: 2px solid rgba(198, 122, 82, 0.2);
+}
+
+.resetActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.actions {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.primaryButton,
+.secondaryButton {
+  border-radius: 8px;
+  padding: 14px 20px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.primaryButton {
+  background: #c67a52;
+  color: #ffffff;
+}
+
+.secondaryButton {
+  background: #ffffff;
+  border: 1px solid #d0ccc4;
+  color: #2c2c2c;
+}
+
+.secondaryButton:disabled,
+.primaryButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.googleIcon {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.googleSvg {
+  width: 100%;
+  height: 100%;
+}
+
+.callout {
+  padding: 8px 28px 0;
+  font-size: 0.9rem;
+  text-align: center;
+  color: #2c2c2c;
+}
+
+.calloutAction {
+  color: #c67a52;
+  font-weight: 600;
+  text-decoration: underline;
+  margin-left: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.homeIndicator {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0 16px;
+}
+
+.homeIndicator span {
+  width: 120px;
+  height: 5px;
+  border-radius: 8px;
+  background: #dcd7cf;
+}
+
+@media (min-width: 600px) {
+  .resetActions {
+    flex-direction: row;
+  }
+}
+
+@media (max-width: 480px) {
+  .device {
+    border-radius: 8px;
+  }
+
+  .heroSection,
+  .form,
+  .actions,
+  .callout {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
