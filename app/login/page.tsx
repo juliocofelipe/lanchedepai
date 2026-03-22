@@ -260,15 +260,6 @@ export default function LoginPage() {
   return (
     <main className={styles.screen}>
       <section className={styles.device}>
-        <div className={styles.statusBar} aria-hidden="true">
-          <span className={styles.statusTime}>9:41</span>
-          <div className={styles.statusIcons}>
-            <span className={styles.statusDot} />
-            <span className={styles.statusLine} />
-            <span className={styles.statusBattery} />
-          </div>
-        </div>
-
         <div className={styles.heroSection}>
           <div className={styles.heroImage}>
             <Image
