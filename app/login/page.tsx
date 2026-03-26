@@ -12,6 +12,8 @@ const emailStorageKey = "lanchinhos:lastEmail";
 const emailIsValid = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 const wait = (duration = 900) => new Promise((resolve) => setTimeout(resolve, duration));
+const registrationFeatureVisible = false;
+const googleAuthVisible = false;
 
 type LoginErrorPayload = {
   error?: string;
@@ -367,21 +369,23 @@ export default function LoginPage() {
             <button type="submit" className={styles.primaryButton} disabled={isBusy}>
               Entrar
             </button>
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              onClick={() => void handleGoogleSignIn()}
-              disabled={isBusy}
-            >
-              <span className={styles.googleIcon} aria-hidden="true">
-                <GoogleIcon />
-              </span>
-              <span>Entrar com Google</span>
-            </button>
+            {googleAuthVisible && (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => void handleGoogleSignIn()}
+                disabled={isBusy}
+              >
+                <span className={styles.googleIcon} aria-hidden="true">
+                  <GoogleIcon />
+                </span>
+                <span>Entrar com Google</span>
+              </button>
+            )}
           </div>
         </form>
 
-        <p className={styles.callout}>
+        <p className={styles.callout} hidden={!registrationFeatureVisible}>
           Ainda não tem conta?
           <button type="button" className={styles.calloutAction} onClick={() => void handleRegister()} disabled={isBusy}>
             Criar agora

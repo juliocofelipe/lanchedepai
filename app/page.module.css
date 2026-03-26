@@ -244,9 +244,10 @@
   background: rgba(0, 0, 0, 0.25);
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
   padding: 40px 16px;
   z-index: 10;
+  overflow-y: auto;
 }
 
 .modal {
@@ -257,6 +258,8 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
 }
 
 .modalTitle {
