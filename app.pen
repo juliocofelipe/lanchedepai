@@ -136,7 +136,7 @@
               "name": "search",
               "width": "fill_container",
               "fill": "#FFFFFF",
-              "cornerRadius": 16,
+              "cornerRadius": 8,
               "stroke": {
                 "thickness": 1,
                 "fill": "#E5E2DC"
@@ -197,7 +197,7 @@
                   "name": "importBtn",
                   "width": "fill_container",
                   "fill": "#FFFFFF",
-                  "cornerRadius": 16,
+                  "cornerRadius": 8,
                   "stroke": {
                     "thickness": 1,
                     "fill": "#D0CCC4"
@@ -228,7 +228,7 @@
                   "name": "newBtn",
                   "width": "fill_container",
                   "fill": "#C67A52",
-                  "cornerRadius": 16,
+                  "cornerRadius": 8,
                   "layout": "vertical",
                   "gap": 4,
                   "padding": [
@@ -276,7 +276,7 @@
                   "width": 357,
                   "height": 77,
                   "fill": "#FFFFFF",
-                  "cornerRadius": 16,
+                  "cornerRadius": 8,
                   "stroke": {
                     "thickness": 1,
                     "fill": "#E5E2DC"
@@ -442,7 +442,7 @@
                   "width": 357,
                   "height": 77,
                   "fill": "#FFFFFF",
-                  "cornerRadius": 16,
+                  "cornerRadius": 8,
                   "stroke": {
                     "thickness": 1,
                     "fill": "#E5E2DC"
@@ -844,6 +844,7 @@
               "type": "frame",
               "id": "xGkeX",
               "name": "meta",
+              "cornerRadius": 8,
               "gap": 12,
               "children": [
                 {
@@ -1220,7 +1221,7 @@
                           "id": "pQBh6",
                           "width": "fill_container",
                           "fill": "#F5F2EC",
-                          "cornerRadius": 16,
+                          "cornerRadius": 8,
                           "stroke": {
                             "thickness": 1,
                             "fill": "#E5E2DC"
@@ -1268,7 +1269,7 @@
                           "width": "fill_container",
                           "height": 120,
                           "fill": "#F5F2EC",
-                          "cornerRadius": 16,
+                          "cornerRadius": 8,
                           "stroke": {
                             "thickness": 1,
                             "fill": "#E5E2DC"
@@ -1317,7 +1318,7 @@
                           "width": "fill_container",
                           "height": 100,
                           "fill": "#F5F2EC",
-                          "cornerRadius": 16,
+                          "cornerRadius": 8,
                           "stroke": {
                             "thickness": 1,
                             "fill": "#E5E2DC"
@@ -1365,7 +1366,7 @@
                           "id": "bOruf",
                           "width": "fill_container",
                           "fill": "#F5F2EC",
-                          "cornerRadius": 16,
+                          "cornerRadius": 8,
                           "stroke": {
                             "thickness": 1,
                             "fill": "#E5E2DC"
@@ -1637,7 +1638,7 @@
                   "width": "fill_container",
                   "height": 160,
                   "fill": "#FFFFFF",
-                  "cornerRadius": 16,
+                  "cornerRadius": 8,
                   "stroke": {
                     "thickness": 1,
                     "fill": "#E5E2DC"
@@ -1682,7 +1683,7 @@
                   "name": "drop",
                   "width": 355,
                   "fill": "#FDF8F2",
-                  "cornerRadius": 16,
+                  "cornerRadius": 8,
                   "stroke": {
                     "thickness": 1,
                     "fill": "#D0CCC4"
@@ -1773,7 +1774,7 @@
                   "type": "frame",
                   "id": "mHPiT",
                   "fill": "#FFFFFF",
-                  "cornerRadius": 16,
+                  "cornerRadius": 8,
                   "stroke": {
                     "thickness": 1,
                     "fill": "#D0CCC4"
@@ -1801,7 +1802,7 @@
                   "type": "frame",
                   "id": "kRYpr",
                   "fill": "#C67A52",
-                  "cornerRadius": 16,
+                  "cornerRadius": 8,
                   "layout": "vertical",
                   "padding": [
                     12,
@@ -1948,7 +1949,7 @@
                 "mode": "fit"
               },
               "width": 402,
-              "height": 196
+              "height": 264
             },
             {
               "type": "text",
@@ -1992,7 +1993,7 @@
                       "name": "fieldEmail",
                       "width": "fill_container",
                       "fill": "#FFFFFF",
-                      "cornerRadius": 16,
+                      "cornerRadius": 8,
                       "stroke": {
                         "thickness": 1,
                         "fill": "#E5E2DC"
@@ -2038,7 +2039,7 @@
                       "name": "fieldPass",
                       "width": "fill_container",
                       "fill": "#FFFFFF",
-                      "cornerRadius": 16,
+                      "cornerRadius": 8,
                       "stroke": {
                         "thickness": 1,
                         "fill": "#E5E2DC"
@@ -2097,7 +2098,7 @@
                   "name": "primary",
                   "width": "fill_container",
                   "fill": "#C67A52",
-                  "cornerRadius": 18,
+                  "cornerRadius": 8,
                   "layout": "vertical",
                   "padding": [
                     14,
@@ -2122,7 +2123,7 @@
                   "name": "secondary",
                   "width": "fill_container",
                   "fill": "#FFFFFF",
-                  "cornerRadius": 18,
+                  "cornerRadius": 8,
                   "stroke": {
                     "thickness": 1,
                     "fill": "#D0CCC4"
