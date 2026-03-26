@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ImageDown, Mic, Pencil, Plus, Star, Trash2, UploadCloud, Wand2, X } from "lucide-react";
+import { Camera, Check, ImageDown, Mic, Pencil, Plus, Star, Trash2, UploadCloud, Wand2, X } from "lucide-react";
 
 import type { ParsedRecipe } from "@/lib/recipe-import";
 import type { Recipe, RecipePayload } from "@/types/recipe";
@@ -133,12 +133,30 @@ export default function Home() {
   const [ocrProgress, setOcrProgress] = useState(0);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [importTransforming, setImportTransforming] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraLoading, setCameraLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const latestOcrFileRef = useRef<File | null>(null);
   const speechRecognitionRef = useRef<VoiceRecognition | null>(null);
+
+  const stopCameraStream = useCallback(() => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {
+          // ignore
+        }
+      });
+    }
+    cameraStreamRef.current = null;
+  }, []);
 
   const processImageWithOcr = useCallback(async (file: File) => {
     setOcrLoading(true);
@@ -182,6 +200,12 @@ export default function Home() {
     (file: File | null) => {
       latestOcrFileRef.current = file;
       setImportImageFile(file);
+      setCameraError(null);
+      setCameraOpen(false);
+      if (cameraVideoRef.current) {
+        cameraVideoRef.current.srcObject = null;
+      }
+      stopCameraStream();
       if (!file) {
         setOcrError(null);
         setImportInfo(null);
@@ -194,12 +218,72 @@ export default function Home() {
       setImportInfo(null);
       void processImageWithOcr(file);
     },
-    [processImageWithOcr]
+    [processImageWithOcr, stopCameraStream]
   );
 
   const handleClearImportImage = useCallback(() => {
     handleImageFileSelection(null);
   }, [handleImageFileSelection]);
+
+  const closeCameraCapture = useCallback(() => {
+    setCameraOpen(false);
+    if (cameraVideoRef.current) {
+      try {
+        cameraVideoRef.current.srcObject = null;
+      } catch {
+        // ignore
+      }
+    }
+    stopCameraStream();
+  }, [stopCameraStream]);
+
+  const openCameraCapture = useCallback(async () => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Seu dispositivo não suporta captura direta.");
+      return;
+    }
+    setCameraError(null);
+    setCameraLoading(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      cameraStreamRef.current = stream;
+      setCameraOpen(true);
+    } catch (cameraProblem) {
+      console.error("camera open", cameraProblem);
+      setCameraError("Não foi possível acessar a câmera. Verifique as permissões.");
+      stopCameraStream();
+    } finally {
+      setCameraLoading(false);
+    }
+  }, [stopCameraStream]);
+
+  const handleCameraCapture = useCallback(() => {
+    const video = cameraVideoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setCameraError("A câmera ainda está inicializando. Tente novamente.");
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setCameraError("Não foi possível preparar a captura.");
+      return;
+    }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setCameraError("Não foi possível gerar a imagem.");
+        return;
+      }
+      const file = new File([blob], `camera-${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
+      handleImageFileSelection(file);
+      closeCameraCapture();
+    }, "image/jpeg", 0.92);
+  }, [closeCameraCapture, handleImageFileSelection]);
 
   const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const [file] = Array.from(event.target.files ?? []);
@@ -328,6 +412,29 @@ export default function Home() {
     };
   }, [importImageFile]);
 
+  useEffect(() => {
+    if (!cameraOpen) return;
+    const video = cameraVideoRef.current;
+    if (!video || !cameraStreamRef.current) return;
+    video.srcObject = cameraStreamRef.current;
+    const playPromise = video.play?.();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {});
+    }
+    return () => {
+      try {
+        video.pause();
+      } catch {
+        // ignore
+      }
+      video.srcObject = null;
+    };
+  }, [cameraOpen]);
+
+  useEffect(() => () => {
+    stopCameraStream();
+  }, [stopCameraStream]);
+
 
   const orderedRecipes = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -385,6 +492,9 @@ export default function Home() {
     setOcrLoading(false);
     setOcrProgress(0);
     latestOcrFileRef.current = null;
+    setCameraError(null);
+    setCameraLoading(false);
+    closeCameraCapture();
   };
 
   const openImport = () => {
@@ -396,6 +506,9 @@ export default function Home() {
     setOcrLoading(false);
     setOcrProgress(0);
     latestOcrFileRef.current = null;
+    setCameraError(null);
+    setCameraLoading(false);
+    closeCameraCapture();
     setImportOpen(true);
   };
 
@@ -751,8 +864,8 @@ export default function Home() {
             </label>
             <div className={styles.importHelper}>
               <p className={styles.importHint}>
-                Prefere usar uma imagem? Arraste/solte, clique abaixo ou simplesmente cole a foto da receita para
-                extrairmos o texto automaticamente.
+                Prefere usar uma imagem? Arraste/solte, clique abaixo, abra a câmera ou simplesmente cole a foto da
+                receita para extrairmos o texto automaticamente.
               </p>
               <label
                 className={styles.dropzone}
@@ -772,6 +885,31 @@ export default function Home() {
                 <span className={styles.dropzoneTitle}>Clique aqui ou solte uma imagem</span>
                 <span className={styles.dropzoneHint}>Formatos compatíveis: JPG, PNG, HEIC</span>
               </label>
+              <button
+                type="button"
+                className={styles.cameraButton}
+                onClick={() => void openCameraCapture()}
+                disabled={cameraLoading || cameraOpen}
+              >
+                <Camera size={16} aria-hidden="true" />
+                <span>{cameraLoading ? "Abrindo câmera..." : cameraOpen ? "Câmera ativa" : "Importar com a câmera"}</span>
+              </button>
+              {cameraError && <p className={styles.error}>{cameraError}</p>}
+              {cameraOpen && (
+                <div className={styles.cameraPreview}>
+                  <video ref={cameraVideoRef} playsInline autoPlay muted />
+                  <div className={styles.cameraActions}>
+                    <button type="button" className={styles.secondaryBtn} onClick={closeCameraCapture}>
+                      <X size={16} aria-hidden="true" />
+                      <span>Cancelar câmera</span>
+                    </button>
+                    <button type="button" className={styles.primaryBtn} onClick={() => void handleCameraCapture()}>
+                      <Camera size={16} aria-hidden="true" />
+                      <span>Capturar</span>
+                    </button>
+                  </div>
+                </div>
+              )}
               {importImagePreview && (
                 <div className={styles.imagePreview}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
