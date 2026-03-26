@@ -16,17 +16,12 @@
   padding: 0 15px;
 }
 
-.heroToolbar {
-  display: flex;
-  justify-content: flex-end;
-}
-
 .brand {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  align-items: center;
-  text-align: center;
+  align-items: flex-start;
+  text-align: left;
 }
 
 .logoWrapper {
@@ -43,7 +38,6 @@
   color: #6b6b6b;
   font-size: 1rem;
   margin: 0;
-  text-align: center;
 }
 
 .searchCard {
@@ -304,6 +298,30 @@
   margin: 0;
 }
 
+.modalTopBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modalCloseIcon {
+  border: none;
+  background: #f0ece6;
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b6b6b;
+  cursor: pointer;
+}
+
+.modalCloseIcon:hover {
+  background: #e0dad0;
+  color: #c4574c;
+}
+
 .fieldGroup {
   display: flex;
   flex-direction: column;
@@ -530,7 +548,12 @@
     padding-top: 40px;
   }
 }
-.logoutButton {
+.topActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.logoutIconButton {
   border: none;
   background: #fff2ea;
   color: #c67a52;
@@ -544,7 +567,7 @@
   box-shadow: 0 6px 16px rgba(198, 122, 82, 0.15);
 }
 
-.logoutButton:hover {
+.logoutIconButton:hover {
   background: #ffd1b4;
   color: #a85831;
 }

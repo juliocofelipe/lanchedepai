@@ -637,13 +637,13 @@ export default function Home() {
 
   return (
     <main className={styles.container}>
+      <div className={styles.topActions}>
+        <button className={styles.logoutIconButton} onClick={() => void handleLogout()} aria-label="Sair">
+          <LogOut size={18} aria-hidden="true" />
+        </button>
+      </div>
       <h1 className="sr-only">Cozya</h1>
       <section className={styles.hero}>
-        <div className={styles.heroToolbar}>
-          <button className={styles.logoutButton} onClick={() => void handleLogout()} aria-label="Sair">
-            <LogOut size={18} aria-hidden="true" />
-          </button>
-        </div>
         <div className={styles.brand}>
           <div className={styles.logoWrapper}>
             <Image src="/images/cozya-logo.png" fill sizes="220px" alt="Logo do Cozya" priority />
@@ -847,7 +847,17 @@ export default function Home() {
       {importOpen && (
         <div className={styles.modalOverlay} role="dialog" aria-modal="true">
           <div className={styles.modal}>
-            <h2 className={styles.modalTitle}>Importar receita</h2>
+            <div className={styles.modalTopBar}>
+              <h2 className={styles.modalTitle}>Importar receita</h2>
+              <button
+                type="button"
+                className={styles.modalCloseIcon}
+                onClick={closeImport}
+                aria-label="Fechar importação"
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
             <label className={styles.fieldGroup}>
               <span className={styles.label}>Cole aqui o texto bruto</span>
               <textarea
@@ -937,10 +947,6 @@ export default function Home() {
             </div>
             {importError && <p className={styles.error}>{importError}</p>}
             <div className={styles.buttonsRow}>
-              <button className={styles.secondaryBtn} onClick={closeImport} disabled={importTransforming}>
-                <X size={16} aria-hidden="true" />
-                <span>Fechar</span>
-              </button>
               <button
                 className={styles.primaryBtn}
                 onClick={() => void handleImportApply()}
