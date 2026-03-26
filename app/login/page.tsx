@@ -265,10 +265,10 @@ export default function LoginPage() {
         <div className={styles.heroSection}>
           <div className={styles.heroImage}>
             <Image
-              src="/images/login-hero.png"
-              alt="Pai e filho preparando lanches"
+              src="/images/cozya-logo.png"
+              alt="Logo do Cozya"
               width={402}
-              height={196}
+              height={231}
               priority
               sizes="(max-width: 480px) 100vw, 420px"
             />
