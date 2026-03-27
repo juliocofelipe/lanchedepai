@@ -85,16 +85,6 @@
   cursor: not-allowed;
 }
 
-.voiceClear {
-  margin-top: 4px;
-  border: none;
-  background: transparent;
-  color: #c4574c;
-  font-size: 0.85rem;
-  cursor: pointer;
-  padding: 0;
-}
-
 .actions {
   display: flex;
   gap: 12px;

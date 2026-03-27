@@ -108,7 +108,6 @@ export default function RecipesScreen() {
   const [speechSupported, setSpeechSupported] = useState(false);
   const [speechActive, setSpeechActive] = useState(false);
   const [speechTarget, setSpeechTarget] = useState<"query" | "import">("query");
-  const [speechTranscript, setSpeechTranscript] = useState("");
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
@@ -340,7 +339,6 @@ export default function RecipesScreen() {
     recognition.onresult = (event) => {
       const transcript = event.results?.[0]?.[0]?.transcript?.trim().replace(/[.。]+$/, "");
       if (transcript) {
-        setSpeechTranscript(transcript);
         if (speechTargetRef.current === "query") {
           setQuery(transcript);
         } else {
@@ -607,7 +605,6 @@ export default function RecipesScreen() {
     }
     setSpeechTarget(target);
     setSpeechError(null);
-    setSpeechTranscript("");
     try {
       speechRecognitionRef.current.start();
       setSpeechActive(true);
@@ -713,11 +710,7 @@ export default function RecipesScreen() {
         onSpeechStop={handleStopListening}
       />
 
-      <VoiceFeedback
-        error={speechError}
-        transcript={speechTranscript}
-        onClearTranscript={() => setSpeechTranscript("")}
-      />
+      <VoiceFeedback error={speechError} />
     </main>
   );
 }
