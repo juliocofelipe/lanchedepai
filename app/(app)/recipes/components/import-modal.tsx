@@ -1,12 +1,7 @@
 "use client";
 
 import { Camera, ImageDown, Mic, Trash2, Wand2, X } from "lucide-react";
-import type {
-  ChangeEvent,
-  ClipboardEvent,
-  DragEvent,
-  RefObject
-} from "react";
+import type { ChangeEvent, ClipboardEvent, DragEvent, RefObject } from "react";
 
 import styles from "../recipes.module.css";
 
@@ -18,9 +13,6 @@ type ImportModalProps = {
   importTransforming: boolean;
   importImagePreview: string | null;
   importImageFileName: string | null;
-  ocrLoading: boolean;
-  ocrProgress: number;
-  ocrError: string | null;
   cameraOpen: boolean;
   cameraError: string | null;
   cameraLoading: boolean;
@@ -50,9 +42,6 @@ export default function ImportModal({
   importTransforming,
   importImagePreview,
   importImageFileName,
-  ocrLoading,
-  ocrProgress,
-  ocrError,
   cameraOpen,
   cameraError,
   cameraLoading,
@@ -107,8 +96,8 @@ export default function ImportModal({
         </div>
         <div className={styles.importHelper}>
           <p className={styles.importHint}>
-            Prefere usar uma imagem? Arraste/solte, clique abaixo, abra a câmera ou simplesmente cole a foto da receita
-            para extrairmos o texto automaticamente.
+            Prefere usar uma imagem? Arraste, solte, clique abaixo, abra a câmera ou cole a foto da receita. A análise
+            roda no servidor com visão por IA e fallback de OCR.
           </p>
           <label className={styles.dropzone} onDragOver={onImportDragOver} onDrop={onImportDrop}>
             <input
@@ -157,15 +146,6 @@ export default function ImportModal({
               </div>
             </div>
           )}
-          {ocrLoading && (
-            <div className={styles.progressWrapper}>
-              <div className={styles.progressBar}>
-                <div style={{ width: `${Math.round(ocrProgress * 100)}%` }} />
-              </div>
-              <small className={styles.progressText}>Extraindo texto... {Math.round(ocrProgress * 100)}%</small>
-            </div>
-          )}
-          {ocrError && <p className={styles.error}>{ocrError}</p>}
           {importInfo && <p className={styles.success}>{importInfo}</p>}
         </div>
         {importError && <p className={styles.error}>{importError}</p>}

@@ -1,189 +1,94 @@
 import { NextResponse } from "next/server";
 
-import { RecipeImportError, parseRecipeText } from "@/server/importer/parser";
-import type { ParsedRecipe } from "@/server/importer/parser";
+import { RecipeImportError } from "@/server/importer/parser";
+import { runRecipeImportWorkflow } from "@/server/recipes/agentic";
+import type { RecipeSourceType } from "@/types/recipe";
 
-type ImportPayload = {
+export const runtime = "nodejs";
+
+type JsonImportPayload = {
   text?: string;
+  titleHint?: string;
+  sourceType?: RecipeSourceType;
+  imageDataUrl?: string;
+  imageMimeType?: string;
 };
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+const normalizeText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
-const schema = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    name: { type: "string" },
-    ingredients: {
-      type: "array",
-      items: { type: "string" }
-    },
-    preparo: { type: "string" },
-    finalizacao: { type: "string" },
-    favorite: { type: "boolean" }
-  },
-  required: ["name", "ingredients", "preparo", "finalizacao"],
-  title: "Recipe"
-};
-
-const systemPrompt = `You are a recipe parser AI.
-Your job is to transform messy recipes (text or OCR from images) into a clean and minimal structure for quick cooking recall.
-
-STRICT RULES:
-1. Remove EVERYTHING unnecessary: stories, tips, long explanations, personal comments.
-2. Extract only: recipe name, ingredients, preparo, finalizacao, favorite.
-3. Preparo must be summarized into ONE simple sentence.
-4. Finalizacao must include baking time, resting, or finishing step.
-5. Ingredients must be a clean list with one item per entry; ignore original bullets and rebuild them as plain strings.
-6. Ignore any formatting from the source text. Normalize spacing, split ingredients in separate entries, and ensure preparo/finalizacao are trimmed sentences without extra line breaks.
-
-OUTPUT FORMAT (MANDATORY JSON matching the provided schema):
-{
-  "name": "",
-  "ingredients": [],
-  "preparo": "",
-  "finalizacao": "",
-  "favorite": false
-}`;
-
-const coerceParsedRecipe = (raw: ParsedRecipe | null): ParsedRecipe => {
-  if (!raw) {
-    throw new RecipeImportError("Resposta vazia do agente");
+const normalizeSourceType = (value: unknown): RecipeSourceType => {
+  switch (value) {
+    case "camera_capture":
+    case "image_upload":
+    case "manual":
+    case "manual_title":
+    case "text_import":
+      return value;
+    default:
+      return "text_import";
   }
+};
+
+const fileToDataUrl = async (file: File) => {
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const mimeType = file.type || "image/jpeg";
+
   return {
-    name: raw.name?.trim() || "",
-    ingredients: Array.isArray(raw.ingredients)
-      ? raw.ingredients.map((item) => String(item).trim()).filter(Boolean)
-      : [],
-    preparo: raw.preparo?.trim() || "",
-    finalizacao: raw.finalizacao?.trim() || "",
-    favorite: Boolean(raw.favorite)
+    imageDataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
+    imageMimeType: mimeType
   };
 };
 
-type OpenAiContentBlock = { type?: string; text?: string };
-type OpenAiOutput = {
-  content?: OpenAiContentBlock[];
+const parseMultipartRequest = async (request: Request) => {
+  const formData = await request.formData();
+  const imageEntry = formData.get("image");
+  const imageFile = imageEntry instanceof File && imageEntry.size > 0 ? imageEntry : null;
+  const imagePayload = imageFile ? await fileToDataUrl(imageFile) : { imageDataUrl: null, imageMimeType: null };
+
+  return {
+    text: normalizeText(formData.get("text")),
+    titleHint: normalizeText(formData.get("titleHint")),
+    sourceType: normalizeSourceType(formData.get("sourceType")),
+    ...imagePayload
+  };
 };
 
-type OpenAiResponse = {
-  output_text?: string[];
-  output?: OpenAiOutput[];
-};
+const parseJsonRequest = async (request: Request) => {
+  const body = (await request.json()) as JsonImportPayload;
 
-const extractOutputText = (completion: OpenAiResponse): string | null => {
-  const candidates: string[] = [];
-  if (Array.isArray(completion.output_text)) {
-    candidates.push(...completion.output_text);
-  }
-  if (Array.isArray(completion.output)) {
-    for (const block of completion.output) {
-      const textBlock = block.content?.find((item) => typeof item?.text === "string");
-      if (textBlock?.text) {
-        candidates.push(textBlock.text);
-      }
-    }
-  }
-  const serialized = candidates.map((item) => item.trim()).find(Boolean);
-  return serialized ?? null;
-};
-
-const callOpenAi = async (text: string): Promise<ParsedRecipe | null> => {
-  if (!OPENAI_API_KEY) {
-    return null;
-  }
-
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      input: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content:
-            "Converta o texto a seguir para JSON seguindo o schema (name, ingredients, preparo, finalizacao):\n\n" +
-            text
-        }
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          schema: {
-            name: "recipe_parser",
-            schema,
-            strict: true
-          }
-        }
-      }
-    })
-  });
-
-  if (!response.ok) {
-    const errorPayload = await response.text();
-    throw new Error(`OpenAI respondeu ${response.status}: ${errorPayload}`);
-  }
-
-  const completion = (await response.json()) as OpenAiResponse & { output_parsed?: ParsedRecipe };
-
-  if (completion.output_parsed) {
-    return coerceParsedRecipe(completion.output_parsed);
-  }
-
-  const content = extractOutputText(completion);
-
-  if (!content) {
-    throw new RecipeImportError("Resposta vazia do modelo");
-  }
-
-  let parsed: ParsedRecipe | null = null;
-  try {
-    parsed = JSON.parse(content) as ParsedRecipe;
-  } catch (error) {
-    throw new RecipeImportError("Não foi possível interpretar o JSON retornado pelo modelo");
-  }
-
-  return coerceParsedRecipe(parsed);
+  return {
+    text: normalizeText(body.text),
+    titleHint: normalizeText(body.titleHint),
+    sourceType: normalizeSourceType(body.sourceType),
+    imageDataUrl: normalizeText(body.imageDataUrl) || null,
+    imageMimeType: normalizeText(body.imageMimeType) || null
+  };
 };
 
 export async function POST(request: Request) {
-  let body: ImportPayload;
   try {
-    body = (await request.json()) as ImportPayload;
-  } catch (error) {
-    console.error("import: JSON inválido", error);
-    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
-  }
+    const contentType = request.headers.get("content-type") || "";
+    const payload = contentType.includes("multipart/form-data")
+      ? await parseMultipartRequest(request)
+      : await parseJsonRequest(request);
 
-  if (!body?.text || typeof body.text !== "string") {
-    return NextResponse.json({ error: "Campo 'text' é obrigatório" }, { status: 400 });
-  }
-
-  if (OPENAI_API_KEY) {
-    try {
-      const aiRecipe = await callOpenAi(body.text);
-      if (aiRecipe) {
-        return NextResponse.json(aiRecipe);
-      }
-    } catch (error) {
-      console.error("import: falha no agente OpenAI", error);
-      // Continua para fallback local
+    if (!payload.text && !payload.imageDataUrl) {
+      return NextResponse.json({ error: "Envie um texto ou uma imagem para importar" }, { status: 400 });
     }
-  }
 
-  try {
-    const parsed = parseRecipeText(body.text);
-    return NextResponse.json(parsed);
+    const recipe = await runRecipeImportWorkflow(payload);
+    return NextResponse.json(recipe);
   } catch (error) {
     if (error instanceof RecipeImportError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      const status = /openai_api_key/i.test(error.message)
+        ? 503
+        : /openai.*rejeitada|autenticação com a openai falhou/i.test(error.message)
+        ? 401
+        : 400;
+      return NextResponse.json({ error: error.message }, { status });
     }
-    console.error("import: erro inesperado", error, body.text?.slice(0, 120));
+
+    console.error("import: erro inesperado", error);
     return NextResponse.json({ error: "Erro inesperado" }, { status: 500 });
   }
 }

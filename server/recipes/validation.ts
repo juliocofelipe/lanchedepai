@@ -1,8 +1,43 @@
-import type { RecipePayload } from "@/types/recipe";
+import type { RecipePayload, RecipeProcessingMetadata, RecipeSourceType } from "@/types/recipe";
 
-export type NormalizedRecipePayload = RecipePayload & { favorite: boolean };
+export type NormalizedRecipePayload = RecipePayload & { favorite: boolean; reviewRequired: boolean };
 
 export class RecipeValidationError extends Error {}
+
+const ALLOWED_SOURCE_TYPES: RecipeSourceType[] = ["manual", "manual_title", "image_upload", "camera_capture", "text_import"];
+
+const normalizeSourceType = (value: unknown): RecipeSourceType | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  return ALLOWED_SOURCE_TYPES.includes(value as RecipeSourceType) ? (value as RecipeSourceType) : undefined;
+};
+
+const normalizeOptionalText = (value: unknown): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed || null;
+};
+
+const normalizeProcessingConfidence = (value: unknown): number | null => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.max(0, Math.min(1, value));
+};
+
+const normalizeProcessingMetadata = (value: unknown): RecipeProcessingMetadata | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as RecipeProcessingMetadata;
+};
 
 const sanitizePayload = (input: Partial<RecipePayload>): NormalizedRecipePayload => {
   const name = typeof input.name === "string" ? input.name.trim() : "";
@@ -30,7 +65,15 @@ const sanitizePayload = (input: Partial<RecipePayload>): NormalizedRecipePayload
     ingredients,
     preparo,
     finalizacao,
-    favorite: Boolean(input.favorite)
+    favorite: Boolean(input.favorite),
+    sourceType: normalizeSourceType(input.sourceType) ?? "manual",
+    sourceText: normalizeOptionalText(input.sourceText),
+    sourceTitle: normalizeOptionalText(input.sourceTitle),
+    aiProvider: normalizeOptionalText(input.aiProvider),
+    aiModel: normalizeOptionalText(input.aiModel),
+    processingConfidence: normalizeProcessingConfidence(input.processingConfidence),
+    reviewRequired: Boolean(input.reviewRequired),
+    processingMetadata: normalizeProcessingMetadata(input.processingMetadata)
   };
 };
 

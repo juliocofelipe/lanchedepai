@@ -25,10 +25,24 @@ export default function RecipeFormModal({
 }: RecipeFormModalProps) {
   if (!open) return null;
 
+  const generatedByAi = formState.sourceType === "manual_title";
+  const showAutomationNotice = generatedByAi || formState.reviewRequired;
+
   return (
     <div className={styles.modalOverlay} role="dialog" aria-modal="true">
       <div className={styles.modal}>
         <h2 className={styles.modalTitle}>{formState.id ? "Editar receita" : "Nova receita"}</h2>
+
+        {showAutomationNotice && (
+          <div className={styles.formNotice}>
+            <strong>{generatedByAi ? "Receita gerada por IA." : "Revise a receita extraída."}</strong>
+            <span>
+              {generatedByAi
+                ? " Ajuste ingredientes e preparo antes de salvar no banco."
+                : " O pipeline marcou este conteúdo para revisão antes de salvar."}
+            </span>
+          </div>
+        )}
 
         <label className={styles.fieldGroup}>
           <span className={styles.label}>Nome</span>

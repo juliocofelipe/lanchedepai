@@ -1,20 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type ClipboardEvent,
-  type DragEvent
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent } from "react";
 
-import type { ParsedRecipe } from "@/server/importer/parser";
-import type { Recipe, RecipePayload } from "@/types/recipe";
+import type { Recipe, RecipePayload, RecipeSourceType } from "@/types/recipe";
 
+import GenerateRecipeModal from "./components/generate-recipe-modal";
 import HeroSection from "./components/hero-section";
 import ImportModal from "./components/import-modal";
 import PrimaryActions from "./components/primary-actions";
@@ -60,16 +51,44 @@ const recipePayloadFromForm = (state: RecipeFormState): RecipePayload => ({
   ingredients: normalizeLines(state.ingredientsText),
   preparo: state.preparo.trim(),
   finalizacao: state.finalizacao.trim(),
-  favorite: state.favorite
+  favorite: state.favorite,
+  sourceType: state.sourceType,
+  sourceText: state.sourceText ?? null,
+  sourceTitle: state.sourceTitle ?? null,
+  aiProvider: state.aiProvider ?? null,
+  aiModel: state.aiModel ?? null,
+  processingConfidence: state.processingConfidence ?? null,
+  reviewRequired: Boolean(state.reviewRequired),
+  processingMetadata: state.processingMetadata ?? null
+});
+
+const recipeDraftToFormState = (recipe: RecipePayload): RecipeFormState => ({
+  id: undefined,
+  name: recipe.name,
+  ingredientsText: recipe.ingredients.join("\n"),
+  preparo: recipe.preparo,
+  finalizacao: recipe.finalizacao,
+  favorite: Boolean(recipe.favorite),
+  sourceType: recipe.sourceType,
+  sourceText: recipe.sourceText ?? null,
+  sourceTitle: recipe.sourceTitle ?? null,
+  aiProvider: recipe.aiProvider ?? null,
+  aiModel: recipe.aiModel ?? null,
+  processingConfidence: recipe.processingConfidence ?? null,
+  reviewRequired: Boolean(recipe.reviewRequired),
+  processingMetadata: recipe.processingMetadata ?? null
 });
 
 const jsonRequest = async <T,>(url: string, init?: RequestInit): Promise<T> => {
+  const isFormDataBody = typeof FormData !== "undefined" && init?.body instanceof FormData;
   const response = await fetch(url, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {})
-    }
+    headers: isFormDataBody
+      ? init?.headers
+      : {
+          "Content-Type": "application/json",
+          ...(init?.headers || {})
+        }
   });
 
   if (!response.ok) {
@@ -80,7 +99,7 @@ const jsonRequest = async <T,>(url: string, init?: RequestInit): Promise<T> => {
         message = payload.error;
       }
     } catch {
-      // Mantém mensagem padrão
+      // Mantem a mensagem padrao.
     }
     throw new Error(message);
   }
@@ -105,6 +124,10 @@ export default function RecipesScreen() {
   const [formOpen, setFormOpen] = useState(false);
   const [formState, setFormState] = useState<RecipeFormState>(emptyFormState);
   const [importOpen, setImportOpen] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [generateTitle, setGenerateTitle] = useState("");
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generateLoading, setGenerateLoading] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [speechActive, setSpeechActive] = useState(false);
   const [speechTarget, setSpeechTarget] = useState<"query" | "import">("query");
@@ -114,9 +137,7 @@ export default function RecipesScreen() {
   const [importInfo, setImportInfo] = useState<string | null>(null);
   const [importImageFile, setImportImageFile] = useState<File | null>(null);
   const [importImagePreview, setImportImagePreview] = useState<string | null>(null);
-  const [ocrLoading, setOcrLoading] = useState(false);
-  const [ocrProgress, setOcrProgress] = useState(0);
-  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [importSourceType, setImportSourceType] = useState<RecipeSourceType>("text_import");
   const [importTransforming, setImportTransforming] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -127,7 +148,6 @@ export default function RecipesScreen() {
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
-  const latestOcrFileRef = useRef<File | null>(null);
   const speechRecognitionRef = useRef<VoiceRecognition | null>(null);
   const speechTargetRef = useRef<"query" | "import">("query");
 
@@ -148,72 +168,36 @@ export default function RecipesScreen() {
     cameraStreamRef.current = null;
   }, []);
 
-  const processImageWithOcr = useCallback(async (file: File) => {
-    setOcrLoading(true);
-    setOcrProgress(0);
-    setOcrError(null);
-    setImportError(null);
-    setImportInfo(null);
-    try {
-      const { default: Tesseract } = await import("tesseract.js");
-      const result = await Tesseract.recognize(file, "por+eng", {
-        logger: (message: { status?: string; progress?: number }) => {
-          if (message.status === "recognizing text" && typeof message.progress === "number") {
-            setOcrProgress(message.progress);
-          }
-        }
-      });
-      if (latestOcrFileRef.current !== file) {
-        return;
-      }
-      const text = result?.data?.text?.trim();
-      if (!text) {
-        setOcrError("Não encontramos texto na imagem selecionada");
-        return;
-      }
-      setOcrError(null);
-      setImportText(text);
-      setImportInfo(`Texto extraído automaticamente (${file.name})`);
-    } catch (ocrProblem) {
-      if (latestOcrFileRef.current === file) {
-        setOcrError("Erro ao extrair texto da imagem");
-      }
-      console.error("OCR", ocrProblem);
-    } finally {
-      if (latestOcrFileRef.current === file) {
-        setOcrLoading(false);
-      }
-    }
-  }, []);
-
   const handleImageFileSelection = useCallback(
-    (file: File | null) => {
-      latestOcrFileRef.current = file;
+    (file: File | null, sourceType: RecipeSourceType = "image_upload") => {
       setImportImageFile(file);
       setCameraError(null);
       setCameraOpen(false);
+
       if (cameraVideoRef.current) {
         cameraVideoRef.current.srcObject = null;
       }
+
       stopCameraStream();
+
       if (!file) {
-        setOcrError(null);
+        setImportSourceType(importText.trim() ? "text_import" : "text_import");
         setImportInfo(null);
-        setOcrLoading(false);
-        setOcrProgress(0);
         return;
       }
-      setImportText("");
+
+      setImportSourceType(sourceType);
       setImportError(null);
-      setImportInfo(null);
-      void processImageWithOcr(file);
+      setImportInfo(`Imagem pronta para análise (${file.name || "captura"}). Clique em Transformar.`);
     },
-    [processImageWithOcr, stopCameraStream]
+    [importText, stopCameraStream]
   );
 
   const handleClearImportImage = useCallback(() => {
-    handleImageFileSelection(null);
-  }, [handleImageFileSelection]);
+    setImportImageFile(null);
+    setImportInfo(null);
+    setImportSourceType("text_import");
+  }, []);
 
   const closeCameraCapture = useCallback(() => {
     setCameraOpen(false);
@@ -229,20 +213,26 @@ export default function RecipesScreen() {
 
   const openCameraCapture = useCallback(async () => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      setCameraError("Seu dispositivo não suporta captura direta.");
+      setCameraError("Seu dispositivo nao suporta captura direta.");
       return;
     }
+
     setCameraError(null);
     setCameraLoading(true);
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
       });
       cameraStreamRef.current = stream;
       setCameraOpen(true);
     } catch (cameraProblem) {
       console.error("camera open", cameraProblem);
-      setCameraError("Não foi possível acessar a câmera. Verifique as permissões.");
+      setCameraError("Nao foi possivel acessar a camera. Verifique as permissoes.");
       stopCameraStream();
     } finally {
       setCameraLoading(false);
@@ -252,33 +242,41 @@ export default function RecipesScreen() {
   const handleCameraCapture = useCallback(() => {
     const video = cameraVideoRef.current;
     if (!video || !video.videoWidth || !video.videoHeight) {
-      setCameraError("A câmera ainda está inicializando. Tente novamente.");
+      setCameraError("A camera ainda esta inicializando. Tente novamente.");
       return;
     }
+
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const context = canvas.getContext("2d");
+
     if (!context) {
-      setCameraError("Não foi possível preparar a captura.");
+      setCameraError("Nao foi possivel preparar a captura.");
       return;
     }
+
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        setCameraError("Não foi possível gerar a imagem.");
-        return;
-      }
-      const file = new File([blob], `camera-${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
-      handleImageFileSelection(file);
-      closeCameraCapture();
-    }, "image/jpeg", 0.92);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setCameraError("Nao foi possivel gerar a imagem.");
+          return;
+        }
+
+        const file = new File([blob], `camera-${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
+        handleImageFileSelection(file, "camera_capture");
+        closeCameraCapture();
+      },
+      "image/jpeg",
+      0.92
+    );
   }, [closeCameraCapture, handleImageFileSelection]);
 
   const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const [file] = Array.from(event.target.files ?? []);
     if (file) {
-      handleImageFileSelection(file);
+      handleImageFileSelection(file, "image_upload");
     }
     event.target.value = "";
   };
@@ -293,7 +291,7 @@ export default function RecipesScreen() {
       event.preventDefault();
       const [file] = Array.from(event.dataTransfer.files ?? []);
       if (file) {
-        handleImageFileSelection(file);
+        handleImageFileSelection(file, "image_upload");
       }
     },
     [handleImageFileSelection]
@@ -308,7 +306,7 @@ export default function RecipesScreen() {
         event.preventDefault();
         const file = imageItem.getAsFile();
         if (file) {
-          handleImageFileSelection(file);
+          handleImageFileSelection(file, "image_upload");
         }
       }
     },
@@ -344,12 +342,15 @@ export default function RecipesScreen() {
         } else {
           setImportText((prev) => (prev ? `${prev}\n${transcript}` : transcript));
           setImportInfo("Texto adicionado via voz");
+          if (!importImageFile) {
+            setImportSourceType("text_import");
+          }
         }
       }
       setSpeechActive(false);
     };
     recognition.onerror = (event) => {
-      setSpeechError("Não foi possível capturar sua voz.");
+      setSpeechError("Nao foi possivel capturar sua voz.");
       console.error("speech error", event);
     };
     recognition.onend = () => {
@@ -365,7 +366,7 @@ export default function RecipesScreen() {
       }
       speechRecognitionRef.current = null;
     };
-  }, []);
+  }, [importImageFile]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -482,10 +483,7 @@ export default function RecipesScreen() {
     setImportError(null);
     setImportInfo(null);
     setImportImageFile(null);
-    setOcrError(null);
-    setOcrLoading(false);
-    setOcrProgress(0);
-    latestOcrFileRef.current = null;
+    setImportSourceType("text_import");
     setCameraError(null);
     setCameraLoading(false);
     closeCameraCapture();
@@ -496,14 +494,25 @@ export default function RecipesScreen() {
     setImportError(null);
     setImportInfo(null);
     setImportImageFile(null);
-    setOcrError(null);
-    setOcrLoading(false);
-    setOcrProgress(0);
-    latestOcrFileRef.current = null;
+    setImportSourceType("text_import");
     setCameraError(null);
     setCameraLoading(false);
     closeCameraCapture();
     setImportOpen(true);
+  };
+
+  const closeGenerate = () => {
+    setGenerateOpen(false);
+    setGenerateTitle("");
+    setGenerateError(null);
+    setGenerateLoading(false);
+  };
+
+  const openGenerate = () => {
+    setGenerateTitle("");
+    setGenerateError(null);
+    setGenerateLoading(false);
+    setGenerateOpen(true);
   };
 
   const handleFavoriteToggle = async (recipe: Recipe) => {
@@ -516,18 +525,25 @@ export default function RecipesScreen() {
           ingredients: currentIngredients,
           preparo: recipe.preparo,
           finalizacao: recipe.finalizacao,
-          favorite: !recipe.favorite
+          favorite: !recipe.favorite,
+          sourceType: recipe.sourceType,
+          sourceText: recipe.sourceText,
+          sourceTitle: recipe.sourceTitle,
+          aiProvider: recipe.aiProvider,
+          aiModel: recipe.aiModel,
+          processingConfidence: recipe.processingConfidence,
+          reviewRequired: recipe.reviewRequired,
+          processingMetadata: recipe.processingMetadata
         })
       });
       setRecipes((prev) => upsertRecipe(prev, updated));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível atualizar");
+      setError(err instanceof Error ? err.message : "Nao foi possivel atualizar");
     }
   };
 
   const handleDeleteRecipe = async (recipe: Recipe) => {
-    const confirmDelete =
-      typeof window === "undefined" ? true : window.confirm(`Remover "${recipe.name}" da lista?`);
+    const confirmDelete = typeof window === "undefined" ? true : window.confirm(`Remover "${recipe.name}" da lista?`);
     if (!confirmDelete) return;
 
     try {
@@ -540,7 +556,7 @@ export default function RecipesScreen() {
         setFormState(emptyFormState());
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível excluir");
+      setError(err instanceof Error ? err.message : "Nao foi possivel excluir");
     }
   };
 
@@ -561,7 +577,7 @@ export default function RecipesScreen() {
       setRecipes((prev) => upsertRecipe(prev, recipe));
       closeForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar");
+      setError(err instanceof Error ? err.message : "Nao foi possivel salvar");
     } finally {
       setSaving(false);
     }
@@ -569,26 +585,37 @@ export default function RecipesScreen() {
 
   const handleImportApply = async () => {
     const trimmed = importText.trim();
-    if (!trimmed) {
-      setImportError("Cole ou extraia o texto da receita antes de transformar");
+    if (!trimmed && !importImageFile) {
+      setImportError("Cole um texto ou selecione uma imagem antes de transformar");
       return;
     }
 
     setImportTransforming(true);
     setImportError(null);
+
     try {
-      const parsed = await jsonRequest<ParsedRecipe>("/api/import", {
-        method: "POST",
-        body: JSON.stringify({ text: trimmed })
-      });
-      setFormState({
-        id: undefined,
-        name: parsed.name,
-        ingredientsText: parsed.ingredients.join("\n"),
-        preparo: parsed.preparo,
-        finalizacao: parsed.finalizacao,
-        favorite: Boolean(parsed.favorite)
-      });
+      const parsed = importImageFile
+        ? await (async () => {
+            const body = new FormData();
+            body.set("image", importImageFile);
+            body.set("sourceType", importSourceType);
+            if (trimmed) {
+              body.set("text", trimmed);
+            }
+            return await jsonRequest<RecipePayload>("/api/import", {
+              method: "POST",
+              body
+            });
+          })()
+        : await jsonRequest<RecipePayload>("/api/import", {
+            method: "POST",
+            body: JSON.stringify({
+              text: trimmed,
+              sourceType: "text_import"
+            })
+          });
+
+      setFormState(recipeDraftToFormState(parsed));
       closeImport();
       setFormOpen(true);
     } catch (importProblem) {
@@ -598,9 +625,35 @@ export default function RecipesScreen() {
     }
   };
 
+  const handleGenerateApply = async () => {
+    const trimmedTitle = generateTitle.trim();
+    if (!trimmedTitle) {
+      setGenerateError("Informe o titulo da receita");
+      return;
+    }
+
+    setGenerateLoading(true);
+    setGenerateError(null);
+
+    try {
+      const generated = await jsonRequest<RecipePayload>("/api/recipes/generate", {
+        method: "POST",
+        body: JSON.stringify({ title: trimmedTitle })
+      });
+
+      setFormState(recipeDraftToFormState(generated));
+      closeGenerate();
+      setFormOpen(true);
+    } catch (generationProblem) {
+      setGenerateError(generationProblem instanceof Error ? generationProblem.message : "Erro ao gerar receita");
+    } finally {
+      setGenerateLoading(false);
+    }
+  };
+
   const handleStartListening = (target: "query" | "import" = "query") => {
     if (!speechSupported || !speechRecognitionRef.current) {
-      setSpeechError("Seu navegador não suporta ditado ainda.");
+      setSpeechError("Seu navegador nao suporta ditado ainda.");
       return;
     }
     setSpeechTarget(target);
@@ -610,7 +663,7 @@ export default function RecipesScreen() {
       setSpeechActive(true);
     } catch (speechProblem) {
       console.error("speech start", speechProblem);
-      setSpeechError("Não foi possível iniciar o microfone.");
+      setSpeechError("Nao foi possivel iniciar o microfone.");
     }
   };
 
@@ -645,11 +698,11 @@ export default function RecipesScreen() {
 
       {!speechSupported && (
         <p className={styles.importHint} style={{ marginTop: 4 }}>
-          Seu navegador não suporta ditado — experimente o Chrome para Android ou desktop.
+          Seu navegador nao suporta ditado. Experimente o Chrome para Android ou desktop.
         </p>
       )}
 
-      <PrimaryActions onImport={openImport} onCreate={openCreate} />
+      <PrimaryActions onImport={openImport} onGenerate={openGenerate} onCreate={openCreate} />
 
       <p className={styles.sectionLabel}>Receitas salvas</p>
 
@@ -682,9 +735,6 @@ export default function RecipesScreen() {
         importTransforming={importTransforming}
         importImagePreview={importImagePreview}
         importImageFileName={importImageFile?.name ?? null}
-        ocrLoading={ocrLoading}
-        ocrProgress={ocrProgress}
-        ocrError={ocrError}
         cameraOpen={cameraOpen}
         cameraError={cameraError}
         cameraLoading={cameraLoading}
@@ -692,7 +742,9 @@ export default function RecipesScreen() {
         onTextChange={(value) => {
           setImportText(value);
           setImportError(null);
-          setImportInfo(null);
+          if (!importImageFile) {
+            setImportSourceType("text_import");
+          }
         }}
         onApply={() => void handleImportApply()}
         onFileChange={handleFileInputChange}
@@ -708,6 +760,19 @@ export default function RecipesScreen() {
         speechActive={speechActive && speechTarget === "import"}
         onSpeechStart={() => handleStartListening("import")}
         onSpeechStop={handleStopListening}
+      />
+
+      <GenerateRecipeModal
+        open={generateOpen}
+        title={generateTitle}
+        loading={generateLoading}
+        error={generateError}
+        onClose={closeGenerate}
+        onTitleChange={(value) => {
+          setGenerateTitle(value);
+          setGenerateError(null);
+        }}
+        onApply={() => void handleGenerateApply()}
       />
 
       <VoiceFeedback error={speechError} />

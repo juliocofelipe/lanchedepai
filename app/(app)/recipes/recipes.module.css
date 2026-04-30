@@ -379,6 +379,18 @@
   color: #6b6b6b;
 }
 
+.formNotice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #fff4df;
+  border: 1px solid #f0d8a5;
+  color: #6a4b11;
+  font-size: 0.9rem;
+}
+
 .input,
 .textarea {
   border-radius: 16px;
