@@ -1,4 +1,4 @@
-# Lanchinhos
+# Cozya
 
 Aplicação Next.js para organizar receitas rápidas com suporte offline e agora persistência em PostgreSQL (Neon).
 
